@@ -1,0 +1,147 @@
+link- https://iron-monitor-system.web.app/
+START IRONSENSE PRO DASHBOARD
+│
+├── CONFIGURE
+│   ├── Firebase: apiKey, databaseURL
+│   ├── Refs: device01 (full node), readings (last 20)
+│   └── State: chart=null, currentThreshold=0.30,
+│              lastKnownStatus=null, isReadingActive=false,
+│              scanTimer=null, csvData=[]
+│
+├── THEMES  (CSS variable swaps on <body> class)
+│   ├── dark (Toxic Neon)   ├── neon-lab (Deep Space)
+│   ├── light (Clinical)    ├── cyber-red
+│   ├── forest-tech         └── mono-gold
+│
+├── UI COMPONENTS
+│   ├── Left Panel
+│   │   ├── Logo image
+│   │   ├── Buttons: Baseline Scan, Sample Scan,
+│   │   │           Abort, System Reset, Download CSV
+│   │   └── Hardware info tags (ESP32 + AS7343)
+│   │
+│   ├── Centre Panel
+│   │   ├── PPM display (large numeric)
+│   │   ├── Scanner ring (SVG circle progress + spin animation)
+│   │   ├── Online/Offline status dot
+│   │   └── Theme selector dropdown
+│   │
+│   └── Right Panel  (hidden on mobile)
+│       ├── Stability waveform (Chart.js line chart)
+│       ├── Safety protocol card
+│       │   ├── Limit selector (WHO / BIS / EPA / EU / India)
+│       │   ├── Threshold value display
+│       │   ├── Safety fill bar
+│       │   └── Status tag (STABLE / ELEVATED / WARNING)
+│       └── Live telemetry log terminal
+│
+├── HELPERS
+│   │
+│   ├── addLog(msg)
+│   │   ├── Create log-entry div with [HH:MM:SS] + msg
+│   │   ├── Prepend to terminal
+│   │   └── IF entries > 8 → remove oldest
+│   │
+│   ├── updateGauge(ppm)
+│   │   ├── Set PPM display text
+│   │   ├── Update SVG circle offset ← ppm / 2.0 (capped at 1)
+│   │   ├── Compute pct ← (ppm / threshold) × 100
+│   │   ├── Update safety fill bar width
+│   │   └── Set accent color:
+│   │       ├── ppm < threshold      → green  | SAFE    | STABLE
+│   │       ├── ppm < threshold×1.5  → orange | CAUTION | ELEVATED
+│   │       └── ppm ≥ threshold×1.5  → red    | DANGER  | WARNING
+│   │
+│   ├── setBtnActive(id)  / clearBtnActive()
+│   │   └── Toggle .btn-active class + inline styles on
+│   │       baselineBtn and sampleBtn
+│   │
+│   ├── startRing(ms, showPopup?)
+│   │   ├── Add .spinning class to scanner ring
+│   │   └── After ms:
+│   │       ├── Remove .spinning
+│   │       ├── clearBtnActive()
+│   │       ├── addLog("Scan Complete")
+│   │       └── IF showPopup → showBaselinePopup()
+│   │
+│   ├── stopRing()
+│   │   ├── Clear pending timer
+│   │   ├── Remove .spinning
+│   │   └── clearBtnActive()
+│   │
+│   ├── showBaselinePopup() / hideBaselinePopup()
+│   │   ├── Stamp current datetime into popup
+│   │   └── Toggle .show on #baseline-popup + #popup-overlay
+│   │
+│   ├── formatTs(raw)
+│   │   ├── IF Unix ms/s number → convert to Date
+│   │   └── Return "YYYY-MM-DD HH:MM:SS" string
+│   │
+│   └── sendCmd(cmd)
+│       └── Firebase SET device01/command ← cmd
+│
+├── BUTTON EVENTS
+│   │
+│   ├── Baseline Scan clicked
+│   │   ├── isReadingActive ← false
+│   │   ├── sendCmd("baseline")
+│   │   ├── setBtnActive("baselineBtn")
+│   │   └── startRing(5000, showPopup=true)
+│   │
+│   ├── Sample Scan clicked
+│   │   ├── isReadingActive ← true
+│   │   ├── sendCmd("start")
+│   │   ├── setBtnActive("sampleBtn")
+│   │   └── startRing(5000)
+│   │
+│   ├── Abort clicked
+│   │   ├── isReadingActive ← false
+│   │   ├── sendCmd("stop")
+│   │   └── stopRing()
+│   │
+│   ├── System Reset clicked
+│   │   ├── Confirm dialog → cancel → exit
+│   │   ├── isReadingActive ← false, stopRing()
+│   │   ├── sendCmd("reset")
+│   │   ├── Firebase REMOVE readings + baseline nodes
+│   │   ├── updateGauge(0)
+│   │   ├── csvData ← []
+│   │   └── Clear chart data + update
+│   │
+│   ├── Download CSV clicked
+│   │   ├── IF csvData empty → alert + exit
+│   │   ├── Build CSV rows: timestamp, ppm, status
+│   │   ├── Append summary: count, avg, max, min, threshold
+│   │   ├── Create Blob → Object URL
+│   │   └── Trigger download as IronSense_YYYYMMDD_HHMM.csv
+│   │
+│   ├── Theme selector changed
+│   │   └── Set body.className ← selected value
+│   │
+│   └── Limit selector changed
+│       ├── currentThreshold ← parseFloat(selected)
+│       ├── Update threshold display text
+│       ├── Update limit label
+│       └── Re-run updateGauge(current ppm)
+│
+├── FIREBASE LISTENERS  (set up on window load)
+│   │
+│   ├── onValue(readings — last 20)
+│   │   ├── IF no data OR !isReadingActive → updateGauge(0), return
+│   │   ├── updateGauge(latest ppm)
+│   │   ├── Push all ppm values to chart → chart.update()
+│   │   └── FOR each reading:
+│   │       ├── formatTs(timestamp)
+│   │       └── IF not duplicate → push to csvData
+│   │
+│   └── onValue(device01)
+│       ├── online ← (now - lastSeen) < 15000ms
+│       ├── Update status dot + text
+│       └── IF status changed → addLog("Link Established" / "Signal Lost")
+│
+└── ON WINDOW LOAD
+    ├── Init Chart.js line chart (20 labels, no axes)
+    ├── Attach Firebase listeners
+    └── addLog("Core Systems Ready")
+
+END
